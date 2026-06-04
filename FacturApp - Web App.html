@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>FacturApp — Web</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body,#root{height:100%;overflow:hidden;}
+body{font-family:'Outfit',system-ui,sans-serif;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+@keyframes slideIn{from{opacity:0;transform:translateX(16px);}to{opacity:1;transform:translateX(0);}}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+.fu{animation:fadeUp .2s ease both;}
+.si{animation:slideIn .22s ease both;}
+input:focus{outline:none;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo, useEffect, useRef } = React;
+const { TweaksPanel, TweakSection, useTweaks } = window;
+
+const D = {
+  bg:'#06101E', bg2:'#0A1628', bg3:'#0E1F38', sidebar:'#060E1C',
+  glass:'rgba(255,255,255,.05)', glassB:'rgba(255,255,255,.08)',
+  line:'rgba(255,255,255,.07)', line2:'rgba(255,255,255,.12)',
+  t1:'#FFFFFF', t2:'rgba(255,255,255,.62)', t3:'rgba(255,255,255,.32)',
+  accent:'#1741C4', accentL:'#5b87f7', accentG:'rgba(23,65,196,.3)',
+  accentGlow:'rgba(23,65,196,.45)',
+  green:'#4ade80', greenS:'rgba(74,222,128,.14)',
+  warn:'#fbbf24',  warnS:'rgba(251,191,36,.14)',
+  red:'#f87171',   redS:'rgba(248,113,113,.14)',
+  mono:"'JetBrains Mono',ui-monospace,monospace",
+};
+
+const fmt$ = n => '$'+Number(n).toLocaleString('es-AR');
+const GC = ({children,style={},onClick})=>(
+  <div onClick={onClick} style={{background:D.glass,border:`1px solid ${D.glassB}`,borderRadius:14,...style,cursor:onClick?'pointer':undefined}}>
+    {children}
+  </div>
+);
+const Lbl=({children,c})=>(<div style={{fontSize:9,letterSpacing:2.5,fontWeight:700,textTransform:'uppercase',color:c||D.t3,marginBottom:4}}>{children}</div>);
+const Chip=({s})=>{
+  const M={emitido:{l:'Emitido',c:D.green,bg:D.greenS},pendiente:{l:'Pendiente',c:D.warn,bg:D.warnS},error:{l:'Error',c:D.red,bg:D.redS},anulado:{l:'Anulado',c:D.t3,bg:D.glass}};
+  const v=M[s]||M.pendiente;
+  return <span style={{display:'inline-flex',padding:'2px 8px',borderRadius:5,background:v.bg,fontFamily:'Outfit',fontWeight:700,fontSize:10,color:v.c,letterSpacing:.5,textTransform:'uppercase'}}>{v.l}</span>;
+};
+const AppIcon=({sz=20})=>(
+  <svg viewBox="0 0 54 64" width={sz} height={sz*1.185} fill="none">
+    <path d="M6 4C6 3 7 2 8 2L36 2L50 16L50 60C50 62 48 62 48 62L8 62C6 62 6 60 6 60Z" fill="#1741C4"/>
+    <path d="M36 2L50 16L36 16Z" fill="#0f2d9e"/>
+    <path d="M14 36L23 46L42 24" stroke="white" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+// ─── Data ───────────────────────────────────────────────────────────────────
+const FACTS=[
+  {id:1,cliente:'Carnicería El Norte',  tipo:'A',num:'0001-00000012',cae:'74521963875412',monto:580000,fecha:'24 May',status:'emitido',items:[{d:'Servicio mensual',q:1,p:580000}]},
+  {id:2,cliente:'Consumidor Final',     tipo:'B',num:'0001-00000011',cae:'74521963875411',monto:142500,fecha:'23 May',status:'emitido',items:[{d:'Productos varios',q:3,p:47500}]},
+  {id:3,cliente:'Martínez Hernán',      tipo:'B',num:'0001-00000010',cae:'74521963875410',monto:1000,  fecha:'22 May',status:'emitido',items:[{d:'Asesoría',q:1,p:1000}]},
+  {id:4,cliente:'Tech Solutions SRL',   tipo:'A',num:'0001-00000009',cae:null,           monto:200000,fecha:'21 May',status:'pendiente',items:[{d:'Consultoría',q:4,p:50000}]},
+  {id:5,cliente:'Constructora del Sur', tipo:'A',num:'0001-00000008',cae:'74521963875408',monto:380000,fecha:'20 May',status:'emitido',items:[{d:'Materiales',q:1,p:380000}]},
+  {id:6,cliente:'Consumidor Final',     tipo:'B',num:'0001-00000007',cae:'74521963875407',monto:12,    fecha:'19 May',status:'anulado',items:[{d:'Test',q:1,p:12}]},
+];
+const CLIENTES=[
+  {nombre:'Carnicería El Norte', cuit:'30-12345678-9',facturas:12,total:580000,ultima:'24 May',tipo:'RI'},
+  {nombre:'Consumidor Final',    cuit:null,           facturas:8, total:369000,ultima:'23 May',tipo:'CF'},
+  {nombre:'Martínez Hernán',     cuit:'27-34567890-1',facturas:10,total:285000,ultima:'22 May',tipo:'M' },
+  {nombre:'Tech Solutions SRL',  cuit:'30-98765432-1',facturas:4, total:160000,ultima:'21 May',tipo:'RI'},
+  {nombre:'Constructora del Sur',cuit:'30-11223344-5',facturas:6, total:380000,ultima:'20 May',tipo:'RI'},
+];
+const MESES=['E','F','M','A','M','J','J','A','S','O','N','D'];
+const VALS=[65000,80000,112000,130000,414000,0,0,0,0,0,0,0];
+
+// ─── Area Chart ─────────────────────────────────────────────────────────────
+const AreaChart=({accent=D.accentL,h=80,animated=true})=>{
+  const data=VALS.map((v,i)=>v>0?v:0);
+  const max=Math.max(...data,1);
+  const W=560,H=h;
+  const pts=data.map((v,i)=>[i*(W/11),H-(v/max)*(H-8)+4]);
+  const path=pts.map(([x,y],i)=>`${i===0?'M':'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const area=path+` L${(W).toFixed(1)},${H} L0,${H} Z`;
+  return (
+    <svg width="100%" height={H+16} viewBox={`0 0 ${W} ${H+16}`} preserveAspectRatio="none" style={{display:'block'}}>
+      <defs>
+        <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={accent} stopOpacity=".3"/>
+          <stop offset="100%" stopColor={accent} stopOpacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#ag)"/>
+      <path d={path} stroke={accent} strokeWidth="2" fill="none" strokeLinejoin="round"/>
+      {pts.map(([x,y],i)=>(
+        <g key={i}>
+          {data[i]>0&&<circle cx={x} cy={y} r="3" fill={i===4?accent:'transparent'} stroke={i===4?accent:'transparent'} strokeWidth="2"/>}
+          <text x={x} y={H+14} textAnchor="middle" fontSize="8" fontFamily="Outfit" fill={i===4?accent:D.t3} fontWeight={i===4?700:400}>{MESES[i]}</text>
+        </g>
+      ))}
+    </svg>
+  );
+};
+
+// ─── Sidebar ────────────────────────────────────────────────────────────────
+const NAV=[{id:'home',l:'Dashboard',i:'home'},{id:'emitir',l:'Emitir',i:'plus',b:'nuevo'},{id:'facturas',l:'Comprobantes',i:'doc'},{id:'clientes',l:'Clientes',i:'user'},{id:'gestion',l:'Gestión',i:'chart',b:'2'},{id:'perfil',l:'Perfil',i:'cog'}];
+const SvgIcon=({id,a})=>{
+  const c=a?D.t1:D.t3;
+  const s={stroke:c,strokeWidth:'1.5',strokeLinecap:'round',strokeLinejoin:'round'};
+  const m={
+    home: <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 6L7.5 1.5L13 6V13H9.5V9H5.5V13H2V6Z" {...s}/></svg>,
+    plus: <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="2" y="1.5" width="11" height="12" rx="2" {...s}/><path d="M7.5 5.5v4M5.5 7.5h4" {...s}/></svg>,
+    doc:  <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="3" y="1.5" width="9" height="12" rx="1.5" {...s}/><path d="M5 5.5H8.5M5 7.5H10M5 9.5H7.5" stroke={c} strokeWidth="1.2" strokeLinecap="round"/></svg>,
+    user: <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="5.5" r="2.5" {...s}/><path d="M3 13c0-2 2-3.5 4.5-3.5S12 11 12 13" {...s}/></svg>,
+    chart:<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="1" y="8.5" width="3" height="5" rx="1" stroke={c} strokeWidth="1.3"/><rect x="6" y="5.5" width="3" height="8" rx="1" stroke={c} strokeWidth="1.3"/><rect x="11" y="2" width="3" height="11.5" rx="1" stroke={c} strokeWidth="1.3"/></svg>,
+    cog:  <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="2" {...s}/><path d="M7.5 1.5v1.8M7.5 11.7v1.8M1.5 7.5h1.8M11.7 7.5h1.8" {...s}/></svg>,
+  };
+  return m[id]||null;
+};
+
+const Sidebar=({screen,setScreen})=>(
+  <aside style={{width:220,height:'100%',background:D.sidebar,display:'flex',flexDirection:'column',flexShrink:0,borderRight:`1px solid ${D.line}`}}>
+    <div style={{padding:'18px 16px 14px',display:'flex',alignItems:'center',gap:9,borderBottom:`1px solid ${D.line}`}}>
+      <div style={{width:30,height:30,borderRadius:8,background:'rgba(255,255,255,.06)',border:`1px solid rgba(255,255,255,.1)`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+        <AppIcon sz={17}/>
+      </div>
+      <div>
+        <div style={{fontFamily:'Outfit',fontWeight:700,fontSize:15,color:D.t1,lineHeight:1}}>FacturApp</div>
+        <div style={{fontFamily:D.mono,fontSize:8.5,color:D.t3,marginTop:1.5}}>web · v2</div>
+      </div>
+    </div>
+    <div style={{padding:'12px 10px 8px'}}>
+      <button onClick={()=>setScreen('emitir')} style={{width:'100%',padding:'10px 14px',background:`linear-gradient(135deg,${D.accent},${D.accentL})`,border:0,borderRadius:10,display:'flex',alignItems:'center',gap:7,cursor:'pointer',boxShadow:`0 5px 18px ${D.accentGlow}`}}>
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
+        <span style={{fontFamily:'Outfit',fontWeight:700,fontSize:13,color:'white',letterSpacing:.2}}>Emitir factura</span>
+      </button>
+    </div>
+    <nav style={{flex:1,padding:'4px 8px',overflowY:'auto'}}>
+      {NAV.map(({id,l,i,b})=>{
+        const a=screen===id;
+        return (
+          <button key={id} onClick={()=>setScreen(id)} style={{width:'100%',display:'flex',alignItems:'center',gap:9,padding:'8px 11px',borderRadius:9,background:a?'rgba(255,255,255,.07)':'transparent',border:0,cursor:'pointer',marginBottom:1,position:'relative',textAlign:'left'}}>
+            {a&&<div style={{position:'absolute',left:0,top:'50%',transform:'translateY(-50%)',width:2.5,height:18,background:D.accentL,borderRadius:'0 2px 2px 0'}}/>}
+            <SvgIcon id={i} a={a}/>
+            <span style={{fontFamily:'Outfit',fontWeight:a?600:400,fontSize:13,color:a?D.t1:D.t3,flex:1}}>{l}</span>
+            {b&&<span style={{background:b==='nuevo'?D.accentG:D.glass,border:`1px solid ${b==='nuevo'?D.accentL:D.glassB}`,borderRadius:5,padding:'1px 6px',fontFamily:'Outfit',fontWeight:700,fontSize:9,color:b==='nuevo'?D.accentL:D.t3,letterSpacing:.5}}>{b}</span>}
+          </button>
+        );
+      })}
+    </nav>
+    <div style={{height:1,background:D.line,margin:'0 10px'}}/>
+    <div style={{padding:'12px 12px 14px',display:'flex',alignItems:'center',gap:9}}>
+      <div style={{width:30,height:30,borderRadius:8,background:D.accentG,border:`1px solid ${D.accentL}44`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+        <span style={{fontFamily:'Outfit',fontWeight:700,fontSize:12,color:D.accentL}}>F</span>
+      </div>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontFamily:'Outfit',fontWeight:600,fontSize:12,color:D.t1}}>Fede Ozan</div>
+        <div style={{fontFamily:D.mono,fontSize:8.5,color:D.t3,marginTop:1}}>20-37778727-8</div>
+      </div>
+      <div style={{width:6,height:6,borderRadius:'50%',background:D.green,flexShrink:0}}/>
+    </div>
+  </aside>
+);
+
+// ─── TopBar ──────────────────────────────────────────────────────────────────
+const TopBar=({title,sub,right})=>(
+  <div style={{height:52,background:D.bg2,borderBottom:`1px solid ${D.line}`,display:'flex',alignItems:'center',padding:'0 24px',gap:12,flexShrink:0}}>
+    <div style={{flex:1}}>
+      <span style={{fontFamily:'Outfit',fontWeight:700,fontSize:15,color:D.t1,letterSpacing:'-.01em'}}>{title}</span>
+      {sub&&<span style={{fontFamily:D.mono,fontSize:9.5,color:D.t3,marginLeft:10}}>{sub}</span>}
+    </div>
+    <div style={{display:'flex',alignItems:'center',gap:7,padding:'5px 11px',background:D.glass,border:`1px solid ${D.glassB}`,borderRadius:8,cursor:'pointer'}}>
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5" cy="5" r="3.5" stroke={D.t3} strokeWidth="1.2"/><path d="M8 8L10.5 10.5" stroke={D.t3} strokeWidth="1.2" strokeLinecap="round"/></svg>
+      <span style={{fontFamily:'Outfit',fontSize:12,color:D.t3}}>Buscar</span>
+      <span style={{fontFamily:D.mono,fontSize:9,color:D.t3,background:D.glass,padding:'1px 5px',borderRadius:4}}>⌘K</span>
+    </div>
+    {right}
+  </div>
+);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD — command center editorial layout
+// ══════════════════════════════════════════════════════════════════════════════
+const Dashboard=({setScreen})=>{
+  const [hRow,setHRow]=useState(null);
+  return (
+    <div className="fu" style={{height:'100%',overflow:'hidden',display:'flex',flexDirection:'column',gap:0}}>
+      {/* ── Row 1: Hero KPI + Fiscal health ── */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 320px',gap:12,padding:'16px 20px 10px',flexShrink:0}}>
+        {/* Hero area chart card */}
+        <GC style={{padding:'18px 22px 10px',position:'relative',overflow:'hidden'}}>
+          <div style={{position:'absolute',top:-60,right:-60,width:220,height:220,borderRadius:'50%',background:`radial-gradient(circle,${D.accentGlow} 0%,transparent 70%)`,pointerEvents:'none'}}/>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12,position:'relative'}}>
+            <div>
+              <Lbl>Facturado acumulado · 2026</Lbl>
+              <div style={{fontFamily:'Outfit',fontWeight:200,fontSize:44,color:D.t1,letterSpacing:'-0.04em',lineHeight:1,fontVariantNumeric:'tabular-nums'}}>$1.498.873</div>
+              <div style={{fontFamily:'Outfit',fontSize:12,color:D.green,fontWeight:700,marginTop:5}}>▲ +22% vs año anterior · mejor mayo histórico</div>
+            </div>
+            <div style={{display:'flex',gap:14}}>
+              {[['Este mes',fmt$(414000)],['Margen','22%']].map(([l,v])=>(
+                <div key={l} style={{textAlign:'right'}}>
+                  <Lbl>{l}</Lbl>
+                  <div style={{fontFamily:'Outfit',fontWeight:600,fontSize:18,color:D.t1,letterSpacing:'-0.02em',fontVariantNumeric:'tabular-nums'}}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <AreaChart/>
+        </GC>
+
+        {/* Fiscal health */}
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {/* Tope */}
+          <GC style={{padding:'14px 16px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+              <Lbl>Tope anual · Cat. D</Lbl>
+              <span style={{fontFamily:'Outfit',fontWeight:700,fontSize:13,color:D.accentL}}>36.6%</span>
+            </div>
+            <div style={{height:5,background:D.glass,borderRadius:3,overflow:'hidden',marginBottom:6}}>
+              <div style={{height:5,width:'36.6%',background:`linear-gradient(90deg,${D.accent},${D.accentL})`,borderRadius:3,boxShadow:`0 0 8px ${D.accentGlow}`}}/>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between'}}>
+              <span style={{fontFamily:D.mono,fontSize:9,color:D.t3}}>$1.498.873</span>
+              <span style={{fontFamily:D.mono,fontSize:9,color:D.t3}}>$4.100.000</span>
+            </div>
+          </GC>
+          {/* Alerts */}
+          <GC style={{padding:'12px 16px',flex:1}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+              <Lbl>Alertas fiscales</Lbl>
+              <div style={{display:'flex',alignItems:'center',gap:4}}>
+                <div style={{width:5,height:5,borderRadius:'50%',background:D.red,animation:'pulse 2s infinite'}}/>
+                <span style={{fontFamily:'Outfit',fontSize:10,color:D.t3}}>2</span>
+              </div>
+            </div>
+            {[{l:'CAE vence en 7 días',c:D.red,bg:D.redS},{l:'3 facturas pendientes',c:D.warn,bg:D.warnS},{l:'Cuota ARCA · 20 Jun',c:D.t3,bg:D.glass}].map(({l,c,bg})=>(
+              <div key={l} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 10px',background:bg,borderRadius:7,marginBottom:5,border:`1px solid ${c}22`}}>
+                <div style={{width:5,height:5,borderRadius:'50%',background:c,flexShrink:0}}/>
+                <span style={{fontFamily:'Outfit',fontSize:12,color:c,fontWeight:500}}>{l}</span>
+              </div>
+            ))}
+          </GC>
+        </div>
+      </div>
+
+      {/* ── Row 2: Recent invoices (fills remaining space) ── */}
+      <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',padding:'0 20px 16px',minHeight:0}}>
+        <GC style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
+          <div style={{padding:'12px 18px 10px',borderBottom:`1px solid ${D.line}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+            <div style={{fontFamily:'Outfit',fontWeight:600,fontSize:14,color:D.t1}}>Últimas emisiones</div>
+            <button onClick={()=>setScreen('facturas')} style={{fontFamily:'Outfit',fontSize:12,color:D.accentL,background:'none',border:0,cursor:'pointer'}}>Ver todas →</button>
+          </div>
+          {/* Table header */}
+          <div style={{display:'grid',gridTemplateColumns:'2fr 1.4fr .9fr 1fr 100px',gap:10,padding:'8px 18px',borderBottom:`1px solid ${D.line}`,background:'rgba(255,255,255,.02)',flexShrink:0}}>
+            {['Cliente','Comprobante','Fecha','Monto','Estado'].map(h=>(
+              <span key={h} style={{fontFamily:'Outfit',fontSize:9.5,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:D.t3}}>{h}</span>
+            ))}
+          </div>
+          {/* Rows */}
+          <div style={{overflowY:'auto',flex:1}}>
+            {FACTS.slice(0,5).map((f,i)=>(
+              <div key={f.id} onMouseEnter={()=>setHRow(i)} onMouseLeave={()=>setHRow(null)}
+                style={{display:'grid',gridTemplateColumns:'2fr 1.4fr .9fr 1fr 100px',gap:10,padding:'11px 18px',borderBottom:i<4?`1px solid ${D.line}`:'none',alignItems:'center',background:hRow===i?'rgba(255,255,255,.04)':'transparent',cursor:'pointer',transition:'background .1s'}}>
+                <span style={{fontFamily:'Outfit',fontWeight:500,fontSize:13.5,color:D.t1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{f.cliente}</span>
+                <span style={{fontFamily:D.mono,fontSize:10.5,color:D.t2}}>Fac.{f.tipo} · {f.num.slice(-5)}</span>
+                <span style={{fontFamily:'Outfit',fontSize:12,color:D.t3}}>{f.fecha}</span>
+                <span style={{fontFamily:'Outfit',fontWeight:600,fontSize:13.5,color:D.t1,fontVariantNumeric:'tabular-nums'}}>{fmt$(f.monto)}</span>
+                <Chip s={f.status}/>
+              </div>
+            ))}
+          </div>
+        </GC>
+      </div>
+    </div>
+  );
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// COMPROBANTES — table + slide-over detail
+// ══════════════════════════════════════════════════════════════════════════════
+const Comprobantes=()=>{
+  const [filter,setFilter]=useState('todos');
+  const [q,setQ]=useState('');
+  const [detail,setDetail]=useState(null);
+  const rows=FACTS.filter(f=>{
+    if(filter!=='todos'&&f.status!==filter)return false;
+    if(q&&!f.cliente.toLowerCase().includes(q.toLowerCase())&&!f.num.includes(q))return false;
+    return true;
+  });
+  const sel=detail!=null?FACTS.find(f=>f.id===detail):null;
+
+  return (
+    <div className="fu" style={{padding:16,height:'100%',display:'flex',flexDirection:'column',gap:12}}>
+      <GC style={{padding:'11px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:7,background:'rgba(255,255,255,.04)',border:`1px solid ${D.glassB}`,borderRadius:8,padding:'7px 11px',flex:1,maxWidth:280}}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="5" cy="5" r="3.5" stroke={D.t3} strokeWidth="1.2"/><path d="M8 8L11 11" stroke={D.t3} strokeWidth="1.2" strokeLinecap="round"/></svg>
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar cliente, número…" style={{border:0,background:'none',fontFamily:'Outfit',fontSize:12,color:D.t1,width:'100%'}}/>
+        </div>
+        <div style={{display:'flex',gap:5}}>
+          {['todos','emitido','pendiente','anulado','error'].map(f=>(
+            <button key={f} onClick={()=>setFilter(f)} style={{padding:'6px 11px',borderRadius:7,border:`1px solid ${filter===f?D.accentL:D.glassB}`,background:filter===f?D.accentG:'transparent',fontFamily:'Outfit',fontSize:11,fontWeight:filter===f?600:400,color:filter===f?D.accentL:D.t3,cursor:'pointer',textTransform:'capitalize'}}>
+              {f}
+            </button>
+          ))}
+        </div>
+        <div style={{marginLeft:'auto',display:'flex',gap:7}}>
+          {['CSV','PDF'].map(a=><button key={a} style={{padding:'7px 13px',border:`1px solid ${D.glassB}`,borderRadius:7,background:'transparent',fontFamily:'Outfit',fontSize:11,color:D.t2,cursor:'pointer'}}>{a}</button>)}
+        </div>
+      </GC>
+
+      <div style={{flex:1,display:'flex',gap:12,minHeight:0}}>
+        {/* Table */}
+        <GC style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
+          <div style={{display:'grid',gridTemplateColumns:'2fr 1.4fr .9fr 1fr 110px 48px',gap:10,padding:'9px 18px',borderBottom:`1px solid ${D.line}`,background:'rgba(255,255,255,.02)',flexShrink:0}}>
+            {['Cliente','Comprobante','Fecha','Monto','Estado',''].map(h=>(
+              <span key={h} style={{fontFamily:'Outfit',fontSize:9,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:D.t3}}>{h}</span>
+            ))}
+          </div>
+          <div style={{overflowY:'auto',flex:1}}>
+            {rows.map((f,i)=>(
+              <div key={f.id} onClick={()=>setDetail(detail===f.id?null:f.id)}
+                style={{display:'grid',gridTemplateColumns:'2fr 1.4fr .9fr 1fr 110px 48px',gap:10,padding:'12px 18px',borderBottom:i<rows.length-1?`1px solid ${D.line}`:'none',alignItems:'center',cursor:'pointer',background:detail===f.id?D.accentG:'transparent',transition:'background .1s'}}
+                onMouseEnter={e=>{if(detail!==f.id)e.currentTarget.style.background='rgba(255,255,255,.04)'}}
+                onMouseLeave={e=>{if(detail!==f.id)e.currentTarget.style.background='transparent'}}>
+                <span style={{fontFamily:'Outfit',fontWeight:500,fontSize:13,color:D.t1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.cliente}</span>
+                <span style={{fontFamily:D.mono,fontSize:10,color:D.t2}}>Fac.{f.tipo} · {f.num.slice(-5)}</span>
+                <span style={{fontFamily:'Outfit',fontSize:11,color:D.t3}}>{f.fecha}</span>
+                <span style={{fontFamily:'Outfit',fontWeight:600,fontSize:13,color:D.t1,fontVariantNumeric:'tabular-nums'}}>{fmt$(f.monto)}</span>
+                <Chip s={f.status}/>
+                <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M1 1l4 4-4 4" stroke={D.t3} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+            ))}
+          </div>
+          {/* Totals footer */}
+          <div style={{padding:'9px 18px',borderTop:`1px solid ${D.line}`,display:'flex',gap:28,flexShrink:0,background:'rgba(255,255,255,.02)'}}>
+            <span style={{fontFamily:'Outfit',fontSize:11,color:D.t3}}>{rows.length} comprobantes</span>
+            <span style={{fontFamily:'Outfit',fontSize:11,color:D.t3}}>Total: <span style={{color:D.t1,fontWeight:700,fontVariantNumeric:'tabular-nums'}}>{fmt$(rows.reduce((s,f)=>s+f.monto,0))}</span></span>
+          </div>
+        </GC>
+
+        {/* Slide-over detail */}
+        {sel&&(
+          <GC style={{width:300,flexShrink:0,display:'flex',flexDirection:'column',overflow:'hidden'}} className="si">
+            <div style={{padding:'14px 16px',borderBottom:`1px solid ${D.line}`,display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+              <div style={{fontFamily:'Outfit',fontWeight:700,fontSize:13,color:D.t1}}>Detalle</div>
+              <button onClick={()=>setDetail(null)} style={{width:22,height:22,borderRadius:6,background:D.glass,border:0,color:D.t3,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>×</button>
+            </div>
+            <div style={{overflowY:'auto',flex:1,padding:'14px 16px'}}>
+              {/* Invoice type header */}
+              <div style={{background:`linear-gradient(135deg,${D.accent}22,${D.accentL}18)`,border:`1px solid ${D.accentG}`,borderRadius:10,padding:'12px 14px',marginBottom:14}}>
+                <div style={{fontFamily:D.mono,fontSize:11,color:D.accentL,marginBottom:4}}>Factura Tipo {sel.tipo}</div>
+                <div style={{fontFamily:D.mono,fontSize:13,color:D.t1,letterSpacing:.5}}>{sel.num}</div>
+                <div style={{fontFamily:'Outfit',fontSize:20,fontWeight:200,color:D.t1,letterSpacing:'-0.02em',marginTop:8,fontVariantNumeric:'tabular-nums'}}>{fmt$(sel.monto)}</div>
+              </div>
+              {[['Receptor',sel.cliente],['Fecha',sel.fecha],['Estado',null],['CAE',sel.cae||'Pendiente']].map(([k,v])=>(
+                <div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:`1px solid ${D.line}`}}>
+                  <span style={{fontFamily:'Outfit',fontSize:12,color:D.t3}}>{k}</span>
+                  {k==='Estado'?<Chip s={sel.status}/>:<span style={{fontFamily:k==='CAE'?D.mono:'Outfit',fontWeight:500,fontSize:k==='CAE'?10:12,color:D.t1}}>{v}</span>}
+                </div>
+              ))}
+              <div style={{marginTop:14}}>
+                <Lbl>Ítems</Lbl>
+                {sel.items.map((it,i)=>(
+                  <div key={i} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:`1px solid ${D.line}`}}>
+                    <div>
+                      <div style={{fontFamily:'Outfit',fontSize:12,color:D.t1}}>{it.d}</div>
+                      <div style={{fontFamily:'Outfit',fontSize:10,color:D.t3,marginTop:2}}>{it.q} u. × {fmt$(it.p)}</div>
+                    </div>
+                    <span style={{fontFamily:'Outfit',fontWeight:600,fontSize:13,color:D.t1,fontVariantNumeric:'tabular-nums'}}>{fmt$(it.q*it.p)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{padding:'12px 16px',borderTop:`1px solid ${D.line}`,display:'flex',gap:8,flexShrink:0}}>
+              {['PDF','Compartir','Anular'].map((a,i)=>(
+                <button key={a} style={{flex:1,padding:'8px 0',borderRadius:8,border:`1px solid ${i===2?D.red+'40':D.glassB}`,background:i===2?D.redS:'transparent',fontFamily:'Outfit',fontSize:11,fontWeight:600,color:i===2?D.red:D.t2,cursor:'pointer'}}>
+                  {a}
+                </button>
+              ))}
+            </div>
+          </GC>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EMITIR — split form + live invoice preview
+// ══════════════════════════════════════════════════════════════════════════════
+const Emitir=()=>{
+  const [step,setStep]=useState(1);
+  const [cliente,setCliente]=useState('');
+  const [tipo,setTipo]=useState('B');
+  const [items,setItems]=useState([{desc:'',qty:1,precio:0}]);
+  const [sent,setSent]=useState(false);
+  const total=items.reduce((s,i)=>s+(i.qty*i.precio),0);
+  const upItem=(idx,f,v)=>setItems(items.map((it,i)=>i===idx?{...it,[f]:v}:it));
+  const today=new Date().toLocaleDateString('es-AR');
+  const STEPS=['Receptor','Comprobante','Confirmar'];
+
+  if(sent) return (
+    <div className="fu" style={{height:'100%',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16}}>
+      <div style={{width:60,height:60,borderRadius:'50%',background:D.greenS,border:`1px solid ${D.green}`,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 0 32px rgba(74,222,128,.3)`}}>
+        <svg width="28" height="22" viewBox="0 0 28 22" fill="none"><path d="M2 11l8 9L26 2" stroke={D.green} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </div>
+      <div style={{fontFamily:'Outfit',fontWeight:700,fontSize:22,color:D.t1}}>Factura emitida</div>
+      <div style={{fontFamily:'Outfit',fontSize:14,color:D.t3}}>CAE asignado · lista para compartir</div>
+      <div style={{display:'flex',gap:10,marginTop:8}}>
+        {['Descargar PDF','Compartir','Nueva factura'].map((a,i)=>(
+          <button key={a} onClick={i===2?()=>{setSent(false);setStep(1);setCliente('');setItems([{desc:'',qty:1,precio:0}]);}:undefined}
+            style={{padding:'10px 20px',borderRadius:10,border:`1px solid ${i===0?D.accentL:D.glassB}`,background:i===0?D.accentG:'transparent',fontFamily:'Outfit',fontWeight:i===2?700:500,fontSize:13,color:i===0?D.accentL:D.t2,cursor:'pointer'}}>
+            {a}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fu" style={{height:'100%',display:'grid',gridTemplateColumns:'1fr 1fr',overflow:'hidden'}}>
+      {/* ── Left: Form ── */}
+      <div style={{borderRight:`1px solid ${D.line}`,padding:'24px',overflowY:'auto',display:'flex',flexDirection:'column',gap:0}}>
+        {/* Stepper */}
+        <div style={{display:'flex',alignItems:'center',marginBottom:28,gap:0}}>
+          {STEPS.map((s,i)=>{
+            const done=i+1<step,active=i+1===step;
+            return (
+              <div key={s} style={{display:'flex',alignItems:'center',flex:i<2?1:'auto'}}>
+                <div style={{display:'flex',alignItems:'center',gap:7}}>
+                  <div style={{width:24,height:24,borderRadius:'50%',background:done||active?D.accent:D.glass,border:`1.5px solid ${done||active?D.accentL:D.glassB}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    {done?<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3L9 1" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                         :<span style={{fontFamily:'Outfit',fontWeight:700,fontSize:10,color:active?'white':D.t3}}>{i+1}</span>}
+                  </div>
+                  <span style={{fontFamily:'Outfit',fontWeight:active?600:400,fontSize:12,color:active?D.t1:D.t3}}>{s}</span>
+                </div>
+                {i<2&&<div style={{flex:1,height:1,background:done?D.accentL:D.line,margin:'0 8px'}}/>}
+              </div>
+            );
+          })}
+        </div>
+
+        {step===1&&(
+          <>
+            <div style={{fontFamily:'Outfit',fontWeight:700,fontSize:16,color:D.t1,marginBottom:4}}>¿A quién le facturás?</div>
+            <div style={{fontFamily:'Outfit',fontSize:13,color:D.t3,marginBottom:20}}>Elegí un cliente de tu cartera o facturá a consumidor final.</div>
+            <button onClick={()=>setCliente('Consumidor Final')} style={{width:'100%',padding:'12px 14px',borderRadius:10,border:`1.5px solid ${cliente==='Consumidor Final'?D.accentL:D.glassB}`,background:cliente==='Consumidor Final'?D.accentG:D.glass,cursor:'pointer',display:'flex',alignItems:'center',gap:10,marginBottom:10,textAlign:'left'}}>
+              <div style={{width:32,height:32,borderRadius:8,background:`linear-gradient(135deg,${D.accent},${D.accentL})`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <span style={{fontFamily:'Outfit',fontWeight:700,fontSize:11,color:'white'}}>CF</span>
+              </div>
+              <div>
+                <div style={{fontFamily:'Outfit',fontWeight:600,fontSize:13,color:D.t1}}>Consumidor Final</div>
+                <div style={{fontFamily:'Outfit',fontSize:11,color:D.t3,marginTop:1}}>Para ventas al público general</div>
+              </div>
+            </button>
+            <Lbl style={{marginBottom:8}}>O elegí de tu cartera</Lbl>
+            {CLIENTES.filter(c=>c.nombre!=='Consumidor Final').map(c=>(
+              <button key={c.nombre} onClick={()=>setCliente(c.nombre)} style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1.5px solid ${cliente===c.nombre?D.accentL:D.glassB}`,background:cliente===c.nombre?D.accentG:D.glass,cursor:'pointer',display:'flex',alignItems:'center',gap:10,marginBottom:6,textAlign:'left'}}>
+                <div style={{width:28,height:28,borderRadius:7,background:'rgba(255,255,255,.08)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  <span style={{fontFamily:'Outfit',fontWeight:700,fontSize:11,color:D.t2}}>{c.nombre[0]}</span>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontFamily:'Outfit',fontWeight:500,fontSize:13,color:D.t1}}>{c.nombre}</div>
+                  {c.cuit&&<div style={{fontFamily:D.mono,fontSize:9,color:D.t3,marginTop:1}}>{c.cuit}</div>}
+                </div>
+              </button>
+            ))}
+            <button onClick={()=>cliente&&setStep(2)} disabled={!cliente} style={{marginTop:16,width:'100%',padding:'12px',background:cliente?`linear-gradient(135deg,${D.accent},${D.accentL})`:'rgba(255,255,255,.04)',border:0,borderRadius:10,fontFamily:'Outfit',fontWeight:700,fontSize:13,color:cliente?'white':D.t3,cursor:cliente?'pointer':'default',boxShadow:cliente?`0 4px 14px ${D.accentGlow}`:undefined}}>
+              Continuar →
+            </button>
+          </>
+        )}
+
+        {step===2&&(
+          <>
+            <div style={{fontFamily:'Outfit',fontWeight:700,fontSize:16,color:D.t1,marginBottom:4}}>Tipo e ítems</div>
+            <div style={{fontFamily:'Outfit',fontSize:13,color:D.t3,marginBottom:18}}>Los datos se reflejan en la vista previa →</div>
+            <Lbl>Tipo de factura</Lbl>
+            <div style={{display:'flex',gap:7,marginBottom:18,marginTop:6}}>
+              {['A','B','C'].map(t=>(
+                <button key={t} onClick={()=>setTipo(t)} style={{padding:'8px 16px',borderRadius:8,border:`1.5px solid ${tipo===t?D.accentL:D.glassB}`,background:tipo===t?D.accentG:D.glass,fontFamily:'Outfit',fontWeight:700,fontSize:13,color:tipo===t?D.accentL:D.t3,cursor:'pointer'}}>
+                  Fac. {t}
+                </button>
+              ))}
+            </div>
+            <Lbl>Ítems</Lbl>
+            {items.map((item,idx)=>(
+              <div key={idx} style={{display:'grid',gridTemplateColumns:'1fr 64px 100px',gap:7,marginBottom:7,marginTop:6}}>
+                {[['desc','Descripción del ítem','text'],['qty','Cant.','number'],['precio','Precio','number']].map(([f,ph,type])=>(
+                  <input key={f} type={type} value={item[f]||''} onChange={e=>upItem(idx,f,type==='number'?+e.target.value:e.target.value)} placeholder={ph}
+                    style={{padding:'9px 11px',border:`1px solid ${D.glassB}`,borderRadius:8,fontFamily:'Outfit',fontSize:12,color:D.t1,background:'rgba(255,255,255,.04)',textAlign:f!=='desc'?'center':'left'}}/>
+                ))}
+              </div>
+            ))}
+            <button onClick={()=>setItems([...items,{desc:'',qty:1,precio:0}])} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 10px',border:`1px dashed ${D.glassB}`,borderRadius:7,background:'none',fontFamily:'Outfit',fontSize:11,color:D.accentL,cursor:'pointer',marginTop:4,marginBottom:16}}>
+              + Agregar ítem
+            </button>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setStep(1)} style={{flex:1,padding:'11px',background:D.glass,border:`1px solid ${D.glassB}`,borderRadius:9,fontFamily:'Outfit',fontSize:12,color:D.t2,cursor:'pointer'}}>← Atrás</button>
+              <button onClick={()=>setStep(3)} style={{flex:2,padding:'11px',background:`linear-gradient(135deg,${D.accent},${D.accentL})`,border:0,borderRadius:9,fontFamily:'Outfit',fontWeight:700,fontSize:13,color:'white',cursor:'pointer'}}>Revisar →</button>
+            </div>
+          </>
+        )}
+
+        {step===3&&(
+          <>
+            <div style={{fontFamily:'Outfit',fontWeight:700,fontSize:16,color:D.t1,marginBottom:4}}>Confirmar emisión</div>
+            <div style={{fontFamily:'Outfit',fontSize:13,color:D.t3,marginBottom:18}}>Revisá la vista previa antes de confirmar. La emisión es irreversible.</div>
+            <div style={{padding:'10px 13px',background:'rgba(23,65,196,.12)',borderRadius:9,display:'flex',gap:8,marginBottom:18,border:`1px solid ${D.accentG}`}}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{flexShrink:0,marginTop:1}}><path d="M6 1.5L10.5 4v4c0 2.3-2.1 3.8-4.5 4.1C3.6 11.8 1.5 10.3 1.5 8V4L6 1.5z" stroke={D.accentL} strokeWidth="1.2" strokeLinejoin="round"/></svg>
+              <span style={{fontFamily:'Outfit',fontSize:11,color:D.accentL,lineHeight:1.5}}><strong>Envío seguro.</strong> Autorización instantánea. Irreversible.</span>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setStep(2)} style={{flex:1,padding:'11px',background:D.glass,border:`1px solid ${D.glassB}`,borderRadius:9,fontFamily:'Outfit',fontSize:12,color:D.t2,cursor:'pointer'}}>← Atrás</button>
+              <button onClick={()=>setSent(true)} style={{flex:2,padding:'11px',background:`linear-gradient(135deg,${D.accent},${D.accentL})`,border:0,borderRadius:9,fontFamily:'Outfit',fontWeight:700,fontSize:13,color:'white',cursor:'pointer',boxShadow:`0 4px 14px ${D.accentGlow}`}}>Confirmar →</button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Right: Live invoice preview ── */}
+      <div style={{padding:'24px',overflowY:'auto',background:'rgba(0,0,0,.15)'}}>
+        <div style={{fontFamily:'Outfit',fontWeight:600,fontSize:11,color:D.t3,letterSpacing:2,textTransform:'uppercase',marginBottom:16}}>Vista previa en tiempo real</div>
+        {/* A4-style document */}
+        <div style={{background:'white',borderRadius:10,padding:'28px 32px',boxShadow:'0 12px 48px rgba(0,0,0,.5)',maxWidth:420,margin:'0 auto'}}>
+          {/* Invoice header */}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20,paddingBottom:16,borderBottom:'2px solid #0F172A'}}>
+            <div>
+              <div style={{fontFamily:'Outfit',fontWeight:900,fontSize:22,color:'#0F172A',letterSpacing:'-0.02em'}}>FACTURA</div>
+              <div style={{fontFamily:'Outfit',fontWeight:700,fontSize:32,color:D.accent,letterSpacing:'-0.04em',lineHeight:1}}>TIPO {tipo}</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <AppIcon sz={28}/>
+              <div style={{fontFamily:'Outfit',fontWeight:700,fontSize:13,color:'#0F172A',marginTop:4}}>FacturApp</div>
+            </div>
+          </div>
+          {/* Meta */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:18}}>
+            {[['N° comprobante','0001-00000113'],['Fecha',today],['Punto de venta','0001'],['Emisor','Federico Ozan']].map(([l,v])=>(
+              <div key={l}>
+                <div style={{fontFamily:'Outfit',fontSize:9,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'#94A3B8',marginBottom:2}}>{l}</div>
+                <div style={{fontFamily:l==='N° comprobante'||l==='Punto de venta'?'JetBrains Mono':'Outfit',fontSize:12,fontWeight:500,color:'#0F172A'}}>{v}</div>
+              </div>
+            ))}
+          </div>
+          {/* Receptor */}
+          <div style={{background:'#F8FAFC',borderRadius:8,padding:'12px 14px',marginBottom:18}}>
+            <div style={{fontFamily:'Outfit',fontSize:9,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'#94A3B8',marginBottom:6}}>Receptor</div>
+            <div style={{fontFamily:'Outfit',fontWeight:600,fontSize:14,color:'#0F172A'}}>{cliente||<span style={{color:'#CBD5E1',fontStyle:'italic',fontWeight:400}}>Sin seleccionar…</span>}</div>
+          </div>
+          {/* Items */}
+          <div style={{marginBottom:16}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 50px 80px',gap:8,padding:'6px 0',borderBottom:'1px solid #E2E8F0',marginBottom:6}}>
+              {['Ítem','Cant.','Total'].map(h=><span key={h} style={{fontFamily:'Outfit',fontSize:9,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'#94A3B8'}}>{h}</span>)}
+            </div>
+            {items.length===0||(items.length===1&&!items[0].desc) ? (
+              <div style={{fontFamily:'Outfit',fontSize:12,color:'#CBD5E1',fontStyle:'italic',padding:'8px 0'}}>Sin ítems aún…</div>
+            ) : items.filter(i=>i.desc).map((it,i)=>(
+              <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 50px 80px',gap:8,padding:'7px 0',borderBottom:'1px solid #F1F5F9'}}>
+                <span style={{fontFamily:'Outfit',fontSize:12,color:'#0F172A'}}>{it.desc}</span>
+                <span style={{fontFamily:'Outfit',fontSize:12,color:'#475569',textAlign:'center'}}>{it.qty}</span>
+                <span style={{fontFamily:'Outfit',fontWeight:600,fontSize:12,color:'#0F172A',fontVariantNumeric:'tabular-nums',textAlign:'right'}}>{fmt$(it.qty*it.precio)}</span>
+              </div>
+            ))}
+          </div>
+          {/* Total */}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',padding:'12px 0',borderTop:'2px solid #0F172A'}}>
+            <span style={{fontFamily:'Outfit',fontWeight:700,fontSize:13,color:'#0F172A',letterSpacing:1,textTransform:'uppercase'}}>Total ARS</span>
+            <span style={{fontFamily:'Outfit',fontWeight:900,fontSize:28,color:'#0F172A',letterSpacing:'-0.03em',fontVariantNumeric:'tabular-nums'}}>{fmt$(total)}</span>
+          </div>
+          {/* CAE pending */}
+          <div style={{marginTop:14,padding:'8px 12px',background:'#EFF6FF',borderRadius:7,display:'flex',gap:7,alignItems:'center'}}>
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1.5L10 4v3.5c0 2-1.9 3.3-4.5 3.5C2.9 10.8 1 9.5 1 7.5V4L5.5 1.5z" stroke="#1E40AF" strokeWidth="1.1" strokeLinejoin="round"/></svg>
+            <span style={{fontFamily:'JetBrains Mono',fontSize:9,color:'#1E40AF'}}>CAE: pendiente de autorización</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CLIENTES — tres columnas
+// ══════════════════════════════════════════════════════════════════════════════
+const ClientesScreen=()=>{
+  const [sel,setSel]=useState(0);
+  const [q,setQ]=useState('');
+  const filtered=CLIENTES.filter(c=>c.nombre.toLowerCase().includes(q.toLowerCase()));
+  const s=filtered[sel]||CLIENTES[0];
+  const sfacts=FACTS.filter(f=>f.cliente===s.nombre);
+
+  return (
+    <div className="fu" style={{padding:16,height:'100%',display:'grid',gridTemplateColumns:'220px 1fr 280px',gap:12}}>
+      {/* Col 1: List */}
+      <GC style={{overflow:'hidden',display:'flex',flexDirection:'column'}}>
+        <div style={{padding:'11px 13px',borderBottom:`1px solid ${D.line}`,flexShrink:0}}>
+          <div style={{display:'flex',alignItems:'center',gap:7,background:'rgba(255,255,255,.04)',border:`1px solid ${D.glassB}`,borderRadius:7,padding:'6px 10px'}}>
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5" cy="5" r="3.5" stroke={D.t3} strokeWidth="1.1"/><path d="M8 8L10.5 10.5" stroke={D.t3} strokeWidth="1.1" strokeLinecap="round"/></svg>
+            <input value={q} onChange={e=>{setQ(e.target.value);setSel(0)}} placeholder="Buscar…" style={{border:0,background:'none',fontFamily:'Outfit',fontSize:12,color:D.t1,width:'100%'}}/>
+          </div>
+        </div>
+        <div style={{overflowY:'auto',flex:1}}>
+          {filtered.map((c,i)=>(
+            <div key={c.nombre} onClick={()=>setSel(i)} style={{display:'flex',alignItems:'center',gap:9,padding:'10px 13px',borderBottom:`1px solid ${D.line}`,cursor:'pointer',background:sel===i?D.accentG:'transparent',transition:'background .1s'}}
+                 onMouseEnter={e=>{if(sel!==i)e.currentTarget.style.background='rgba(255,255,255,.04)'}}
+                 onMouseLeave={e=>{if(sel!==i)e.currentTarget.style.background='transparent'}}>
+              <div style={{width:30,height:30,borderRadius:8,background:sel===i?`linear-gradient(135deg,${D.accent},${D.accentL})`:D.glass,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <span style={{fontFamily:'Outfit',fontWeight:700,fontSize:12,color:sel===i?'white':D.t2}}>{c.nombre[0]}</span>
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontFamily:'Outfit',fontWeight:500,fontSize:12,color:D.t1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.nombre}</div>
+                <div style={{fontFamily:'Outfit',fontSize:10,color:D.t3,marginTop:1}}>{fmt$(c.total/1000)}k · {c.facturas} fact.</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{padding:'10px 13px',borderTop:`1px solid ${D.line}`,flexShrink:0}}>
+          <button style={{width:'100%',padding:'8px',background:D.accentG,border:`1px solid ${D.accentL}44`,borderRadius:8,fontFamily:'Outfit',fontSize:12,fontWeight:600,color:D.accentL,cursor:'pointer'}}>+ Nuevo cliente</button>
+        </div>
+      </GC>
+
+      {/* Col 2: Detail */}
+      <GC style={{overflow:'hidden',display:'flex',flexDirection:'column'}}>
+        <div style={{padding:'18px 22px',borderBottom:`1px solid ${D.line}`,flexShrink:0}}>
+          <div style={{display:'flex',alignItems:'center',gap:14}}>
+            <div style={{width:44,height:44,borderRadius:12,background:`linear-gradient(135deg,${D.accent},${D.accentL})`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+              <span style={{fontFamily:'Outfit',fontWeight:700,fontSize:18,color:'white'}}>{s.nombre[0]}</span>
+            </div>
+            <div>
+              <div style={{fontFamily:'Outfit',fontWeight:700,fontSize:17,color:D.t1}}>{s.nombre}</div>
+              {s.cuit?<div style={{fontFamily:D.mono,fontSize:10,color:D.t3,marginTop:2}}>{s.cuit}</div>:<div style={{fontFamily:'Outfit',fontSize:11,color:D.t3,marginTop:2}}>Sin CUIT (Consumidor Final)</div>}
+              <span style={{display:'inline-flex',padding:'2px 8px',borderRadius:5,background:D.accentG,border:`1px solid ${D.accentL}44`,fontFamily:'Outfit',fontWeight:700,fontSize:9,color:D.accentL,marginTop:5,letterSpacing:.5}}>{s.tipo}</span>
+            </div>
+          </div>
+        </div>
+        <div style={{padding:'16px 22px',flex:1,overflowY:'auto'}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
+            {[['Total facturado',fmt$(s.total)],['Comprobantes',s.facturas],['Última factura',s.ultima],['Estado','Activo']].map(([l,v])=>(
+              <GC key={l} style={{padding:'12px 14px'}}>
+                <Lbl>{l}</Lbl>
+                <div style={{fontFamily:'Outfit',fontWeight:600,fontSize:16,color:D.t1,marginTop:6}}>{v}</div>
+              </GC>
+            ))}
+          </div>
+          <button style={{width:'100%',padding:'12px',background:`linear-gradient(135deg,${D.accent},${D.accentL})`,border:0,borderRadius:10,fontFamily:'Outfit',fontWeight:700,fontSize:13,color:'white',cursor:'pointer',boxShadow:`0 4px 14px ${D.accentGlow}`,marginBottom:16}}>
+            Emitir factura →
+          </button>
+          {/* MRR bar */}
+          <GC style={{padding:'14px 16px'}}>
+            <Lbl>Concentración de facturación</Lbl>
+            <div style={{height:5,background:'rgba(255,255,255,.06)',borderRadius:3,overflow:'hidden',marginTop:8,marginBottom:5}}>
+              <div style={{height:5,width:`${Math.round((s.total/1498873)*100)}%`,background:`linear-gradient(90deg,${D.accent},${D.accentL})`,borderRadius:3}}/>
+            </div>
+            <span style={{fontFamily:'Outfit',fontSize:11,color:D.t3}}>{Math.round((s.total/1498873)*100)}% del total facturado</span>
+          </GC>
+        </div>
+      </GC>
+
+      {/* Col 3: Invoice history */}
+      <GC style={{overflow:'hidden',display:'flex',flexDirection:'column'}}>
+        <div style={{padding:'13px 16px',borderBottom:`1px solid ${D.line}`,flexShrink:0}}>
+          <div style={{fontFamily:'Outfit',fontWeight:600,fontSize:13,color:D.t1}}>Historial de emisiones</div>
+          <div style={{fontFamily:'Outfit',fontSize:11,color:D.t3,marginTop:2}}>{sfacts.length} comprobantes</div>
+        </div>
+        <div style={{overflowY:'auto',flex:1}}>
+          {sfacts.length===0?<div style={{padding:'20px 16px',fontFamily:'Outfit',fontSize:12,color:D.t3,textAlign:'center'}}>Sin facturas aún</div>:sfacts.map((f,i)=>(
+            <div key={f.id} style={{padding:'11px 16px',borderBottom:i<sfacts.length-1?`1px solid ${D.line}`:'none'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                <span style={{fontFamily:D.mono,fontSize:10,color:D.t2}}>Fac.{f.tipo} · {f.num.slice(-5)}</span>
+                <Chip s={f.status}/>
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+                <span style={{fontFamily:'Outfit',fontSize:11,color:D.t3}}>{f.fecha}</span>
+                <span style={{fontFamily:'Outfit',fontWeight:700,fontSize:14,color:D.t1,fontVariantNumeric:'tabular-nums'}}>{fmt$(f.monto)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </GC>
+    </div>
+  );
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GESTIÓN — BI style con period selector
+// ══════════════════════════════════════════════════════════════════════════════
+const Gestion=()=>{
+  const [period,setPeriod]=useState('mes');
+  const [tab,setTab]=useState('pl');
+  const maxV=Math.max(...VALS,1);
+  const totals={mes:414000,trim:687000,año:1498873};
+  const t=totals[period];
+
+  return (
+    <div className="fu" style={{padding:16,height:'100%',overflowY:'auto',display:'flex',flexDirection:'column',gap:12}}>
+      {/* Controls */}
+      <div style={{display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+        <div style={{display:'flex',gap:5}}>
+          {[['mes','Este mes'],['trim','3 meses'],['año','Anual']].map(([k,l])=>(
+            <button key={k} onClick={()=>setPeriod(k)} style={{padding:'7px 14px',borderRadius:8,border:`1px solid ${period===k?D.accentL:D.glassB}`,background:period===k?D.accentG:'transparent',fontFamily:'Outfit',fontSize:12,fontWeight:period===k?600:400,color:period===k?D.accentL:D.t3,cursor:'pointer'}}>{l}</button>
+          ))}
+        </div>
+        <div style={{height:16,width:1,background:D.line,margin:'0 4px'}}/>
+        {[['pl','P&L'],['clientes','Clientes'],['gastos','Gastos']].map(([k,l])=>(
+          <button key={k} onClick={()=>setTab(k)} style={{padding:'7px 14px',borderRadius:8,border:`1px solid ${tab===k?D.accentL:D.glassB}`,background:tab===k?D.accentG:'transparent',fontFamily:'Outfit',fontSize:12,fontWeight:tab===k?600:400,color:tab===k?D.accentL:D.t3,cursor:'pointer'}}>{l}</button>
+        ))}
+      </div>
+
+      {/* Full-width chart card */}
+      <GC style={{padding:'18px 24px 10px',flexShrink:0}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
+          <div>
+            <Lbl>Facturación · {period==='mes'?'Mayo 2026':period==='trim'?'Mar–May 2026':'2026'}</Lbl>
+            <div style={{fontFamily:'Outfit',fontWeight:200,fontSize:38,color:D.t1,letterSpacing:'-0.04em',fontVariantNumeric:'tabular-nums',lineHeight:1,marginTop:6}}>{fmt$(t)}</div>
+          </div>
+          <div style={{display:'flex',gap:20,alignItems:'flex-start'}}>
+            {[['Compras','$10k','#f97316'],['Gastos','$7k',D.red],['Margen','22%',D.green]].map(([l,v,c])=>(
+              <div key={l} style={{textAlign:'right'}}>
+                <div style={{display:'flex',alignItems:'center',gap:5,justifyContent:'flex-end',marginBottom:3}}>
+                  <div style={{width:7,height:7,borderRadius:2,background:c}}/>
+                  <Lbl>{l}</Lbl>
+                </div>
+                <div style={{fontFamily:'Outfit',fontWeight:600,fontSize:16,color:D.t1,fontVariantNumeric:'tabular-nums'}}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <AreaChart h={90}/>
+      </GC>
+
+      {tab==='pl'&&(
+        <div style={{display:'grid',gridTemplateColumns:'1fr 360px',gap:12}}>
+          {/* Waterfall P&L */}
+          <GC style={{padding:'18px 22px'}}>
+            <Lbl>Estado de resultados · {period==='mes'?'Mayo':period==='trim'?'Mar–May':'2026'}</Lbl>
+            <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:3}}>
+              {[['Ingresos',414000,100,D.accentL,null],['Compras',−10000,2.4,'#f97316','−$10k'],['Gastos',−7000,1.7,D.red,'−$7k'],['Margen',397000,95.9,D.green,null]].map(([l,v,p,c,badge],i)=>(
+                <div key={l} style={{display:'flex',alignItems:'center',gap:12,padding:i===3?'11px 14px':'8px 14px',background:i===3?'rgba(74,222,128,.06)':undefined,borderRadius:i===3?10:undefined}}>
+                  <div style={{width:8,height:8,borderRadius:2,background:c,flexShrink:0}}/>
+                  <span style={{fontFamily:'Outfit',fontWeight:i===3?700:500,fontSize:13,color:i===3?c:D.t2,minWidth:80}}>{l}</span>
+                  <div style={{flex:1,height:4,background:D.glass,borderRadius:2,overflow:'hidden'}}>
+                    <div style={{height:4,width:`${Math.min(p,100)}%`,background:c,borderRadius:2,opacity:.7}}/>
+                  </div>
+                  {badge&&<span style={{fontFamily:'Outfit',fontSize:11,color:c,background:`${c}15`,padding:'1px 7px',borderRadius:4,fontWeight:600}}>{badge}</span>}
+                  <span style={{fontFamily:'Outfit',fontWeight:700,fontSize:13,color:i===3?c:D.t1,fontVariantNumeric:'tabular-nums',minWidth:70,textAlign:'right'}}>{fmt$(Math.abs(v))}</span>
+                </div>
+              ))}
+            </div>
+          </GC>
+          {/* Month comparison */}
+          <GC style={{padding:'18px 20px'}}>
+            <Lbl>Comparativo mensual</Lbl>
+            <div style={{display:'flex',alignItems:'flex-end',gap:4,height:100,marginTop:14,marginBottom:8}}>
+              {VALS.map((v,i)=>{
+                const h=v>0?Math.max(3,Math.round((v/maxV)*90)):2;
+                return (
+                  <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+                    <div style={{width:'100%',height:h,borderRadius:'2px 2px 0 0',background:i===4?D.accentL:v===0?D.glass:`rgba(91,135,247,.3)`,boxShadow:i===4?`0 4px 12px ${D.accentGlow}`:undefined,transition:'height .4s ease'}}/>
+                    <span style={{fontFamily:'Outfit',fontSize:8,color:i===4?D.accentL:D.t3,fontWeight:i===4?700:400}}>{MESES[i]}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{height:1,background:D.line,margin:'8px 0'}}/>
+            {[['▲ Mayo','mejor mes del año',D.green],['▼ Feb','mes más bajo registrado',D.t3]].map(([l,s,c])=>(
+              <div key={l} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 0'}}>
+                <span style={{fontFamily:'Outfit',fontWeight:700,fontSize:12,color:c,minWidth:40}}>{l}</span>
+                <span style={{fontFamily:'Outfit',fontSize:11,color:D.t3}}>{s}</span>
+              </div>
+            ))}
+          </GC>
+        </div>
+      )}
+
+      {tab==='clientes'&&(
+        <GC style={{padding:'18px 22px'}}>
+          <Lbl>Top clientes · Acumulado</Lbl>
+          <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:14}}>
+            {CLIENTES.sort((a,b)=>b.total-a.total).map((c,i)=>(
+              <div key={c.nombre} style={{display:'flex',alignItems:'center',gap:14}}>
+                <span style={{fontFamily:'Outfit',fontWeight:800,fontSize:12,color:D.accentL,minWidth:22}}>#{i+1}</span>
+                <div style={{flex:1}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
+                    <span style={{fontFamily:'Outfit',fontWeight:500,fontSize:13,color:D.t1}}>{c.nombre}</span>
+                    <div style={{textAlign:'right'}}>
+                      <span style={{fontFamily:'Outfit',fontWeight:700,fontSize:13,color:D.t1,fontVariantNumeric:'tabular-nums'}}>{fmt$(c.total)}</span>
+                      <span style={{fontFamily:'Outfit',fontSize:10,color:D.t3,marginLeft:8}}>{c.facturas} fact.</span>
+                    </div>
+                  </div>
+                  <div style={{height:4,background:D.glass,borderRadius:2,overflow:'hidden'}}>
+                    <div style={{height:4,width:`${Math.round((c.total/580000)*100)}%`,background:`linear-gradient(90deg,${D.accent},${D.accentL})`,borderRadius:2}}/>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </GC>
+      )}
+
+      {tab==='gastos'&&(
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+          <GC style={{padding:'18px 22px'}}>
+            <Lbl>Distribución de gastos</Lbl>
+            <div style={{fontFamily:'Outfit',fontWeight:200,fontSize:32,color:D.red,letterSpacing:'-0.03em',fontVariantNumeric:'tabular-nums',lineHeight:1,marginTop:10,marginBottom:18}}>$67.000</div>
+            {[['Impuestos / AFIP',38400,57,'#f87171'],['Software / SaaS',23400,35,'#a78bfa'],['Servicios',5200,8,D.t3]].map(([l,v,p,c])=>(
+              <div key={l} style={{marginBottom:13}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}><div style={{width:7,height:7,borderRadius:2,background:c}}/><span style={{fontFamily:'Outfit',fontSize:12,color:D.t2}}>{l}</span></div>
+                  <div style={{display:'flex',gap:10}}><span style={{fontFamily:'Outfit',fontSize:10,color:D.t3}}>{p}%</span><span style={{fontFamily:'Outfit',fontWeight:600,fontSize:12,color:D.t1,fontVariantNumeric:'tabular-nums'}}>{fmt$(v)}</span></div>
+                </div>
+                <div style={{height:4,background:D.glass,borderRadius:2,overflow:'hidden'}}><div style={{height:4,width:`${p}%`,background:c,borderRadius:2,opacity:.65}}/></div>
+              </div>
+            ))}
+          </GC>
+          <GC style={{padding:'18px 22px'}}>
+            <Lbl>Últimos registros</Lbl>
+            <div style={{marginTop:10}}>
+              {[['Cuota ARCA','20 May','Impuestos',18400],['GitHub Copilot','15 May','Software',12000],['Figma Pro','14 May','Software',8900],['ARBA cuota','10 May','Impuestos',20000]].map(([c,f,cat,v])=>(
+                <div key={c} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:`1px solid ${D.line}`}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontFamily:'Outfit',fontWeight:500,fontSize:13,color:D.t1}}>{c}</div>
+                    <div style={{fontFamily:'Outfit',fontSize:10,color:D.t3,marginTop:1}}>{f} · {cat}</div>
+                  </div>
+                  <span style={{fontFamily:'Outfit',fontWeight:600,fontSize:13,color:D.red,fontVariantNumeric:'tabular-nums'}}>−{fmt$(v)}</span>
+                </div>
+              ))}
+              <button style={{width:'100%',marginTop:12,padding:'8px',border:`1px dashed ${D.glassB}`,borderRadius:8,background:'none',fontFamily:'Outfit',fontSize:12,color:D.accentL,cursor:'pointer'}}>+ Registrar gasto</button>
+            </div>
+          </GC>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PERFIL
+// ══════════════════════════════════════════════════════════════════════════════
+const Perfil=()=>(
+  <div className="fu" style={{padding:20,height:'100%',overflowY:'auto'}}>
+    <div style={{maxWidth:580,margin:'0 auto',display:'flex',flexDirection:'column',gap:14}}>
+      <GC style={{padding:'20px 24px'}}>
+        <Lbl>Datos fiscales</Lbl>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:12}}>
+          {[['Razón Social','Federico Ozan',false],['CUIT','20-37778727-8',true],['Condición','Responsable Inscripto',false],['Categoría','D — hasta $4.100.000/año',false],['Punto de venta','0001',true],['Desde','Enero 2022',false]].map(([l,v,m])=>(
+            <GC key={l} style={{padding:'11px 13px'}}>
+              <Lbl>{l}</Lbl>
+              <div style={{fontFamily:m?D.mono:'Outfit',fontWeight:500,fontSize:13,color:D.t1,marginTop:5}}>{v}</div>
+            </GC>
+          ))}
+        </div>
+      </GC>
+      <GC style={{padding:'16px 20px'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+          <div><Lbl>Tope anual · Categoría D</Lbl></div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontFamily:'Outfit',fontWeight:200,fontSize:24,color:D.t1,letterSpacing:'-0.03em',fontVariantNumeric:'tabular-nums'}}>36.6%</div>
+            <div style={{fontFamily:'Outfit',fontSize:10,color:D.green,fontWeight:700}}>▲ en regla</div>
+          </div>
+        </div>
+        <div style={{height:6,background:D.glass,borderRadius:3,overflow:'hidden'}}><div style={{height:6,width:'36.6%',background:`linear-gradient(90deg,${D.accent},${D.accentL})`,borderRadius:3,boxShadow:`0 0 10px ${D.accentGlow}`}}/></div>
+        <div style={{display:'flex',justifyContent:'space-between',marginTop:5}}>
+          <span style={{fontFamily:D.mono,fontSize:9,color:D.t3}}>$1.498.873</span>
+          <span style={{fontFamily:D.mono,fontSize:9,color:D.t3}}>$4.100.000</span>
+        </div>
+      </GC>
+      <div style={{background:`linear-gradient(135deg,${D.accent},${D.accentL})`,borderRadius:14,padding:'18px 22px',display:'flex',alignItems:'center',justifyContent:'space-between',boxShadow:`0 10px 28px ${D.accentGlow}`}}>
+        <div><Lbl c="rgba(255,255,255,.55)">Plan actual</Lbl><div style={{fontFamily:'Outfit',fontWeight:800,fontSize:20,color:'white',marginTop:5}}>Gratis</div><div style={{fontFamily:'Outfit',fontSize:12,color:'rgba(255,255,255,.55)',marginTop:2}}>Todas las funciones básicas</div></div>
+        <button style={{padding:'10px 18px',background:'white',border:0,borderRadius:10,fontFamily:'Outfit',fontWeight:700,fontSize:13,color:D.accent,cursor:'pointer'}}>Ver Pro →</button>
+      </div>
+      <GC style={{overflow:'hidden'}}>
+        {[['Notificaciones','Alertas de vencimientos y facturas'],['Certificado ARCA','Activo · vence 24 Jun 2026'],['Exportar datos','Descarga del historial completo'],['Cerrar sesión','']].map(([l,sub],i,arr)=>(
+          <div key={l} style={{display:'flex',alignItems:'center',gap:12,padding:'13px 18px',borderBottom:i<arr.length-1?`1px solid ${D.line}`:'none',cursor:'pointer'}}
+               onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,.04)'}
+               onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+            <div style={{flex:1}}>
+              <div style={{fontFamily:'Outfit',fontWeight:500,fontSize:13,color:l==='Cerrar sesión'?D.red:D.t1}}>{l}</div>
+              {sub&&<div style={{fontFamily:'Outfit',fontSize:11,color:D.t3,marginTop:1}}>{sub}</div>}
+            </div>
+            <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M1 1l4 4-4 4" stroke={D.t3} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </div>
+        ))}
+      </GC>
+    </div>
+  </div>
+);
+
+// ─── App ─────────────────────────────────────────────────────────────────────
+const META={home:{t:'Dashboard',s:'Mayo 2026 · Sistema en línea'},emitir:{t:'Emitir factura',s:'Nueva emisión'},facturas:{t:'Comprobantes',s:'Historial · clic en una fila para ver detalle'},clientes:{t:'Clientes',s:'Gestión de cartera'},gestion:{t:'Gestión',s:'Analytics y resultados'},perfil:{t:'Perfil',s:'Datos fiscales y configuración'}};
+
+const TWEAK_DEFAULS = /*EDITMODE-BEGIN*/{"pantalla":"home"}/*EDITMODE-END*/;
+function App() {
+  const [screen,setScreen]=useState('home');
+  const [t,setTweak]=useTweaks(TWEAK_DEFAULS);
+  const m=META[screen]||META.home;
+  const S={home:<Dashboard setScreen={setScreen}/>,emitir:<Emitir/>,facturas:<Comprobantes/>,clientes:<ClientesScreen/>,gestion:<Gestion/>,perfil:<Perfil/>};
+  return (
+    <div style={{display:'flex',height:'100vh',background:D.bg}}>
+      <Sidebar screen={screen} setScreen={setScreen}/>
+      <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+        <TopBar title={m.t} sub={m.s} right={
+          screen==='home'&&(
+            <button onClick={()=>setScreen('emitir')} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',background:`linear-gradient(135deg,${D.accent},${D.accentL})`,border:0,borderRadius:8,fontFamily:'Outfit',fontWeight:700,fontSize:12,color:'white',cursor:'pointer',boxShadow:`0 3px 10px ${D.accentGlow}`}}>
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1v9M1 5.5h9" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
+              Emitir
+            </button>
+          )
+        }/>
+        {S[screen]||S.home}
+      </div>
+      <TweaksPanel>
+        <TweakSection label="Pantalla">
+          {NAV.map(({id,l})=>(
+            <button key={id} onClick={()=>setScreen(id)} style={{display:'block',width:'100%',padding:'7px 11px',borderRadius:7,border:0,background:screen===id?D.accentG:'transparent',fontFamily:'Outfit',fontSize:12,color:screen===id?D.accentL:D.t3,cursor:'pointer',textAlign:'left',marginBottom:2}}>{l}</button>
+          ))}
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
