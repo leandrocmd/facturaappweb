@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Manual: certificado digital de ARCA | FacturaApp</title>
+<meta name="description" content="Guía completa paso a paso para obtener el certificado digital de ARCA (ex AFIP), autorizar los servicios web de facturación electrónica y crear el punto de venta RECE." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --navy1: #0B1B4D; --navy2: #12277A; --accent: #1741C4; --accent-l: #3B6EF0;
+    --bg: #F8FAFC; --card: #FFFFFF; --border: #E2E8F0;
+    --t1: #0F172A; --t2: #334155; --t3: #64748B;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Outfit', system-ui, sans-serif; background: var(--bg); color: var(--t1); line-height: 1.6; }
+  a { color: var(--accent); }
+  .hero { background: linear-gradient(150deg, var(--navy1) 0%, var(--navy2) 55%, var(--accent) 100%); color: #fff; padding: 56px 24px; }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  .kicker { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.6); }
+  .hero h1 { font-size: clamp(28px, 5vw, 38px); font-weight: 700; margin-top: 8px; line-height: 1.2; }
+  .hero p { color: rgba(255,255,255,.75); margin-top: 16px; max-width: 620px; }
+  .hero .btns { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn { display: inline-block; font-weight: 700; font-size: 14px; padding: 10px 20px; border-radius: 999px; text-decoration: none; }
+  .btn-white { background: #fff; color: var(--t1); }
+  .btn-ghost { border: 1px solid rgba(255,255,255,.3); color: #fff; }
+  main { max-width: 760px; margin: 0 auto; padding: 0 24px 80px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: 20px; }
+  .intro { margin-top: 32px; }
+  .intro h2 { font-size: 17px; }
+  .intro p { font-size: 14px; color: var(--t2); margin-top: 8px; }
+  .sec { margin: 48px 0 20px; }
+  .sec .k { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+  .sec h2 { font-size: 24px; margin-top: 4px; }
+  .paso { display: flex; gap: 16px; margin-bottom: 16px; }
+  .paso .num { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--accent-l)); }
+  .paso h3 { font-size: 16px; }
+  .paso .porque { font-size: 13px; color: var(--t3); font-style: italic; margin-top: 2px; }
+  .paso ul { margin: 12px 0 0; padding: 0; list-style: none; }
+  .paso li { font-size: 14px; color: var(--t2); padding-left: 16px; position: relative; margin-bottom: 8px; overflow-wrap: break-word; }
+  .paso li::before { content: '·'; color: var(--accent); font-weight: 700; position: absolute; left: 0; }
+  .nota { margin-top: 12px; font-size: 13px; color: var(--t2); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .err h3 { font-size: 14px; }
+  .err p { font-size: 14px; color: var(--t2); margin-top: 4px; }
+  .err { margin-bottom: 12px; }
+  a.fuente { display: block; text-decoration: none; margin-bottom: 12px; }
+  a.fuente:hover { box-shadow: 0 4px 20px rgba(0,0,0,.10); }
+  a.fuente h3 { font-size: 14px; color: var(--accent); }
+  a.fuente p { font-size: 14px; color: var(--t2); margin-top: 4px; }
+  .cta { margin-top: 56px; border-radius: 12px; padding: 24px; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-l)); }
+  .cta h2 { font-size: 19px; }
+  .cta p { color: rgba(255,255,255,.8); font-size: 14px; margin-top: 8px; }
+  .legal { font-size: 12px; color: var(--t3); margin-top: 40px; }
+  code { font-family: ui-monospace, monospace; font-size: 13px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <p class="kicker">FacturaApp · Guía completa</p>
+    <h1>Certificado digital de ARCA: el manual completo</h1>
+    <p>Todo el trámite para facturar electrónicamente con tu propio certificado: crear el computador fiscal, obtener el certificado, autorizar los dos servicios web y dar de alta el punto de venta. Con links al material oficial de ARCA con capturas de pantalla.</p>
+    <div class="btns">
+      <a class="btn btn-white" href="https://auth.afip.gob.ar/contribuyente_/login.xhtml" target="_blank" rel="noopener noreferrer">Abrir el portal de ARCA</a>
+      <a class="btn btn-ghost" href="#material-oficial">Ir al material oficial</a>
+    </div>
+  </div>
+</header>
+<main>
+  <div class="card intro">
+    <h2>Antes de empezar</h2>
+    <p>Vas a necesitar tu <strong>clave fiscal nivel 3 o superior</strong>. Si no la tenés, se tramita gratis desde la app oficial "Mi ARCA" con tu DNI. El trámite completo lleva entre 15 y 30 minutos, se hace una sola vez, y el certificado dura 2 años. Si usás la app FacturaApp, el <strong>asistente de certificado</strong> hace la parte técnica (clave y solicitud) automáticamente y te va marcando estos mismos pasos.</p>
+  </div>
+
+  <div class="sec"><p class="k">Parte 1</p><h2>El certificado digital</h2></div>
+
+  <div class="card paso"><div class="num">1</div><div>
+    <h3>Entrá a ARCA con tu clave fiscal</h3>
+    <ul>
+      <li>Ingresá a auth.afip.gob.ar con tu CUIT y tu clave fiscal (nivel 3 o superior).</li>
+      <li>Si tu clave es de nivel menor, subila a nivel 3 desde la app "Mi ARCA" con tu DNI (validación biométrica), sin ir a una dependencia.</li>
+    </ul>
+  </div></div>
+
+  <div class="card paso"><div class="num">2</div><div>
+    <h3>Creá tu computador fiscal (alias)</h3>
+    <p class="porque">Es el "nombre" con el que ARCA va a conocer al sistema que factura por vos.</p>
+    <ul>
+      <li>Buscá el servicio "Administración de Certificados Digitales". Si no lo ves, agregalo primero desde el Administrador de Relaciones de Clave Fiscal (adherir servicio → ARCA → Web services).</li>
+      <li>Tocá "Agregar alias" y elegí un nombre corto, por ejemplo: facturapp.</li>
+      <li>Si ya tenés un alias creado (de un contador o de otro sistema), podés reutilizarlo: en ese caso solo vas a agregar un certificado nuevo sobre ese alias.</li>
+    </ul>
+  </div></div>
+
+  <div class="card paso"><div class="num">3</div><div>
+    <h3>Conseguí tu solicitud de certificado (.csr)</h3>
+    <p class="porque">El .csr es un archivo que se genera con una clave privada tuya; ARCA lo firma y te devuelve el certificado.</p>
+    <ul>
+      <li>Con la app FacturaApp: el asistente de certificado genera la clave y el archivo .csr en tu teléfono, sin instalar nada. Es el camino recomendado.</li>
+      <li>A mano (avanzado): en una terminal con OpenSSL: <code>openssl genrsa -out clave.key 2048</code> y después <code>openssl req -new -key clave.key -subj "/C=AR/O=TuNombre/CN=facturapp/serialNumber=CUIT 20XXXXXXXXX" -out pedido.csr</code></li>
+      <li>Guardá la clave privada (.key): la vas a necesitar junto con el certificado. Sin ella, el certificado no sirve.</li>
+    </ul>
+  </div></div>
+
+  <div class="card paso"><div class="num">4</div><div>
+    <h3>Subí el .csr y descargá tu certificado (.crt)</h3>
+    <ul>
+      <li>En "Administración de Certificados Digitales", entrá a tu alias y elegí "Agregar certificado".</li>
+      <li>Subí el archivo .csr — ARCA lo pide como ARCHIVO, no como texto pegado.</li>
+      <li>Descargá el certificado emitido (.crt). Junto con tu clave privada, es lo que la app usa para facturar.</li>
+    </ul>
+    <p class="nota">La guía oficial de ARCA con capturas de pantalla de cada una de estas pantallas está linkeada al final de esta página.</p>
+  </div></div>
+
+  <div class="sec"><p class="k">Parte 2</p><h2>Autorizar los DOS servicios web</h2></div>
+
+  <div class="card paso"><div class="num">5</div><div>
+    <h3>Autorizá el servicio de Facturación Electrónica</h3>
+    <p class="porque">Sin esta autorización el certificado existe pero no puede facturar: es el paso que casi todos los tutoriales olvidan.</p>
+    <ul>
+      <li>Buscá el servicio "Administrador de Relaciones de Clave Fiscal".</li>
+      <li>Tocá "Nueva Relación" → ARCA → WebServices → "Facturación Electrónica".</li>
+      <li>En "Representante", elegí tu computador fiscal (el alias del paso 2). Confirmá.</li>
+      <li>ARCA emite un formulario F.3283/E — esa es la señal de que quedó bien.</li>
+    </ul>
+  </div></div>
+
+  <div class="card paso"><div class="num">6</div><div>
+    <h3>Autorizá también la Consulta de Constancia de Inscripción</h3>
+    <p class="porque">Es la SEGUNDA relación: permite validar los datos fiscales de tus clientes al facturar.</p>
+    <ul>
+      <li>Repetí exactamente lo mismo del paso anterior, pero eligiendo el servicio "Consulta de Constancia de Inscripción" (mismo representante).</li>
+      <li>Si el alias ya tenía las dos relaciones hechas, las ves en "Consultar" del Administrador de Relaciones.</li>
+    </ul>
+    <p class="nota">Si al validar el certificado aparece "Computador no autorizado a acceder al servicio", falta una de estas DOS relaciones.</p>
+  </div></div>
+
+  <div class="sec"><p class="k">Parte 3</p><h2>El punto de venta</h2></div>
+
+  <div class="card paso"><div class="num">7</div><div>
+    <h3>Creá el punto de venta para web services</h3>
+    <p class="porque">Los comprobantes electrónicos salen de un punto de venta específico; sin uno del tipo correcto, la primera factura falla con el error 10005.</p>
+    <ul>
+      <li>Buscá el servicio "Administración de puntos de venta y domicilios".</li>
+      <li>Entrá a "A/B/M de puntos de venta" y elegí "Agregar".</li>
+      <li>Como sistema de facturación elegí el tipo web services según tu condición: monotributista → "Factura Electrónica - Monotributo - Web Services"; responsable inscripto → "RECE para aplicativo y web services"; exento → "Factura Electrónica - Exento en IVA - Web Services".</li>
+      <li>Anotá el número que te asigna ARCA: es el que va configurado en la app (si no coincide, la numeración de tus facturas falla).</li>
+    </ul>
+    <p class="nota">Un punto de venta de "Comprobantes en línea" NO sirve para la app: tiene que ser del tipo web services. Podés tener varios puntos de venta conviviendo.</p>
+  </div></div>
+
+  <div class="sec"><p class="k">Si algo falla</p><h2>Errores frecuentes</h2></div>
+
+  <div class="card err"><h3>"Computador no autorizado a acceder al servicio"</h3><p>Falta una (o las dos) Relaciones de Clave Fiscal de los pasos 5 y 6.</p></div>
+  <div class="card err"><h3>Error 10005 al emitir la primera factura</h3><p>El punto de venta no es del tipo web services (paso 7), o el número configurado no coincide con el de ARCA.</p></div>
+  <div class="card err"><h3>El certificado no coincide con la clave privada</h3><p>Se regeneró la clave después de subir el .csr. Hay que subir un .csr nuevo a ARCA y descargar el certificado de nuevo.</p></div>
+  <div class="card err"><h3>Certificado vencido</h3><p>El certificado dura 2 años. Se renueva subiendo una solicitud nueva sobre el mismo alias — las relaciones y el punto de venta siguen válidos.</p></div>
+
+  <div class="sec" id="material-oficial"><p class="k">Fuentes</p><h2>Material oficial de ARCA</h2></div>
+
+  <a class="fuente card" href="https://www.arca.gob.ar/ws/WSAA/WSAA.ObtenerCertificado.pdf" target="_blank" rel="noopener noreferrer"><h3>Generación de certificados para producción (PDF con capturas) ↗</h3><p>La guía oficial ilustrada de ARCA: alias, solicitud y descarga del certificado, pantalla por pantalla.</p></a>
+  <a class="fuente card" href="https://www.arca.gob.ar/ws/documentacion/certificados.asp" target="_blank" rel="noopener noreferrer"><h3>Certificados digitales — documentación oficial ↗</h3><p>La página de referencia de ARCA sobre certificados para web services.</p></a>
+  <a class="fuente card" href="https://www.arca.gob.ar/facturacion/documentos/puntos-de-venta.pdf" target="_blank" rel="noopener noreferrer"><h3>Puntos de venta (PDF oficial) ↗</h3><p>Guía oficial de habilitación de puntos de venta para factura electrónica.</p></a>
+  <a class="fuente card" href="https://serviciosweb.afip.gob.ar/genericos/guiadetramites/VerGuia.aspx?tr=19" target="_blank" rel="noopener noreferrer"><h3>Administrador de Relaciones — guía de trámites ↗</h3><p>La guía oficial del servicio con el que se autorizan los web services.</p></a>
+  <a class="fuente card" href="https://www.youtube.com/c/afipcomunica" target="_blank" rel="noopener noreferrer"><h3>Canal oficial de ARCA en YouTube ↗</h3><p>Tutoriales oficiales en video (clave fiscal, monotributo, facturación). No hay un video específico del certificado para web services: para eso, el PDF ilustrado de arriba.</p></a>
+
+  <div class="cta">
+    <h2>¿Muy técnico? La app lo hace con vos.</h2>
+    <p>El asistente de certificado de FacturaApp genera la clave y la solicitud en tu teléfono, te guía por cada pantalla de ARCA con un checklist, y valida el certificado apenas lo subís.</p>
+  </div>
+
+  <p class="legal">FacturaApp no está afiliada a ARCA. Los nombres de servicios y pantallas pertenecen al organismo y pueden cambiar sin aviso; ante cualquier diferencia, vale la documentación oficial linkeada arriba. · <a href="/terminos">Términos</a> · <a href="/privacidad">Privacidad</a></p>
+</main>
+</body>
+</html>
